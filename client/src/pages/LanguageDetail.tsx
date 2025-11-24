@@ -10,6 +10,13 @@ export default function LanguageDetail() {
   const params = useParams();
   const [, navigate] = useLocation();
   const languageName = decodeURIComponent(params.code || "");
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigate("/");
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -19,7 +26,7 @@ export default function LanguageDetail() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate("/")}
+            onClick={handleBack}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />

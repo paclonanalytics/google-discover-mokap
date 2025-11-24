@@ -16,6 +16,7 @@ import Categories from "./pages/Categories";
 import Publishers from "./pages/Publishers";
 import MyProjects from "./pages/MyProjects";
 import LanguageDetail from "./pages/LanguageDetail";
+import FeedSnapshot from "./pages/FeedSnapshot";
 
 function Router() {
   return (
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/category/:name" component={CategoryDetail} />
       <Route path="/publisher/:domain" component={PublisherDetail} />
       <Route path="/article/:id" component={ArticleDetail} />
+      <Route path="/feed/:snapshotId" component={FeedSnapshot} />
       <Route path="/language/:code" component={LanguageDetail} />
       <Route path="/entities" component={Entities} />
       <Route path="/categories" component={Categories} />

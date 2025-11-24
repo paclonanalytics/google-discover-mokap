@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { BarChart3, Search, Wrench, User, ChevronDown, ChevronRight, Compass, Tag, Grid, Globe, FolderOpen, Folder, Filter as FilterIcon, Calendar, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -28,6 +28,7 @@ interface DashboardLayoutProps {
   setFilterPublisher?: (value: string) => void;
   period?: string;
   setPeriod?: (value: string) => void;
+  publisherOptions?: string[];
 }
 
 const menuItems = [
@@ -70,11 +71,20 @@ export default function DashboardLayout({
   filterPublisher = "all",
   setFilterPublisher,
   period = "live",
-  setPeriod
+  setPeriod,
+  publisherOptions
 }: DashboardLayoutProps) {
   const [location] = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['/']);
   const { theme, toggleTheme } = useTheme();
+
+  const shouldRenderStickyFilters = location === "/" || location === "/entities";
+  const normalizedPublisherOptions = useMemo(() => {
+    if (publisherOptions && publisherOptions.length > 0) {
+      return publisherOptions.filter((option) => option !== "all");
+    }
+    return ["google", "mozilla"];
+  }, [publisherOptions]);
 
   const toggleMenu = (path: string) => {
     setExpandedMenus(prev => 
@@ -217,7 +227,7 @@ export default function DashboardLayout({
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Sticky Header with Filters - overlay to avoid layout shift */}
-        {location === "/" && (
+        {shouldRenderStickyFilters && (
           <div className="sticky top-0 z-50 h-0 pointer-events-none">
             <div
               className={cn(
@@ -283,13 +293,16 @@ export default function DashboardLayout({
               </Select>
 
               <Select value={filterPublisher} onValueChange={setFilterPublisher}>
-                <SelectTrigger className="h-8 text-xs w-[90px]">
+                <SelectTrigger className="h-8 text-xs w-[120px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="google">Google</SelectItem>
-                  <SelectItem value="mozilla">Mozilla</SelectItem>
+                  <SelectItem value="all">All publishers</SelectItem>
+                  {normalizedPublisherOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 

@@ -1009,6 +1009,7 @@ const formatLabels: Record<string, string> = {
   "title-image": "Title + image",
   "image-top": "Image on top",
   story: "Story",
+  experimental: "Testing layout",
 };
 
 const badgeConfig: Record<
@@ -1317,6 +1318,7 @@ const renderEntitiesBadges = (material: typeof popularMaterials[number]) => (
       setFilterPublisher={setFilterPublisherMain}
       period={period}
       setPeriod={setPeriod}
+      publisherOptions={["google", "mozilla"]}
     >
       <div className="p-6 space-y-6">
         {/* Search Form with Simplified Filters */}
@@ -1870,27 +1872,33 @@ const renderEntitiesBadges = (material: typeof popularMaterials[number]) => (
                 </Button>
                 <div className="flex flex-wrap gap-2">
                   {[
-                    { key: "new", label: "New", icon: Sparkles },
-                    { key: "trending", label: "Trending", icon: Flame },
-                    { key: "wide_geo", label: "Wide GEO", icon: Globe },
-                    { key: "reappeared", label: "Reappeared", icon: Repeat },
+                    { key: "new", label: "New", icon: Sparkles, tooltip: "Show newly created articles" },
+                    { key: "trending", label: "Trending", icon: Flame, tooltip: "Show articles gaining momentum" },
+                    { key: "wide_geo", label: "Wide GEO", icon: Globe, tooltip: "Show articles with wide geographic coverage" },
+                    { key: "reappeared", label: "Reappeared", icon: Repeat, tooltip: "Show articles that reappeared recently" },
                   ].map(badge => (
-                    <Button
-                      key={badge.key}
-                      variant={filterBadges.includes(badge.key) ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 text-xs flex items-center gap-1"
-                      onClick={() => {
-                        setFilterBadges(prev =>
-                          prev.includes(badge.key)
-                            ? prev.filter(b => b !== badge.key)
-                            : [...prev, badge.key]
-                        );
-                      }}
-                    >
-                      <badge.icon className="h-3.5 w-3.5" />
-                      {badge.label}
-                    </Button>
+                    <TooltipProvider key={badge.key}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={filterBadges.includes(badge.key) ? "default" : "outline"}
+                            size="sm"
+                            className="h-8 text-xs flex items-center gap-1"
+                            onClick={() => {
+                              setFilterBadges(prev =>
+                                prev.includes(badge.key)
+                                  ? prev.filter(b => b !== badge.key)
+                                  : [...prev, badge.key]
+                              );
+                            }}
+                          >
+                            <badge.icon className="h-3.5 w-3.5" />
+                            {badge.label}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{badge.tooltip}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   ))}
                 </div>
               </div>

@@ -9,6 +9,13 @@ export default function PublisherDetail() {
   const [, params] = useRoute("/publisher/:domain");
   const [, navigate] = useLocation();
   const publisherDomain = params?.domain ? decodeURIComponent(params.domain) : "";
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigate("/");
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -17,7 +24,7 @@ export default function PublisherDetail() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate("/")}
+            onClick={handleBack}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />

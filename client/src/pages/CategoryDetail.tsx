@@ -9,6 +9,13 @@ export default function CategoryDetail() {
   const [, params] = useRoute("/category/:name");
   const [, navigate] = useLocation();
   const categoryName = params?.name ? decodeURIComponent(params.name) : "";
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigate("/");
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -17,7 +24,7 @@ export default function CategoryDetail() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate("/")}
+            onClick={handleBack}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
