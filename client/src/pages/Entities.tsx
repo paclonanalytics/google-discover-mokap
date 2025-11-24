@@ -827,7 +827,6 @@ export default function Entities() {
   const [filterLanguage, setFilterLanguage] = useState<LanguageFilter>("all");
   const [filterCategory, setFilterCategory] = useState<CategoryFilter>("all");
   const [filterFormat, setFilterFormat] = useState<FormatFilter>("all");
-  const [filterPublisher, setFilterPublisher] = useState("all");
   const [period, setPeriod] = useState<PeriodFilter>("week");
   const [page, setPage] = useState(1);
   const [showStickyFilters, setShowStickyFilters] = useState(false);
@@ -837,11 +836,6 @@ export default function Entities() {
   const filterSectionRef = useRef<HTMLDivElement>(null);
 
   const pageSize = 30;
-
-  const publisherOptions = useMemo(() => {
-    const unique = Array.from(new Set(entitiesData.map((entity) => entity.publisher)));
-    return unique.sort();
-  }, []);
 
   const handleFilterCountryChange = (value: string) => setFilterCountry(value as CountryFilter);
   const handleFilterLanguageChange = (value: string) => setFilterLanguage(value as LanguageFilter);
@@ -897,7 +891,6 @@ export default function Entities() {
     filterLanguage,
     filterCategory,
     filterFormat,
-    filterPublisher,
     period,
     compareMode,
     compareTarget,
@@ -947,11 +940,10 @@ export default function Entities() {
       if (filterLanguage !== "all" && entity.language !== filterLanguage) return false;
       if (filterCategory !== "all" && entity.category !== filterCategory) return false;
       if (filterFormat !== "all" && entity.format !== filterFormat) return false;
-      if (filterPublisher !== "all" && entity.publisher !== filterPublisher) return false;
       if (period !== "custom" && !entity.periods.includes(period)) return false;
       return true;
     });
-  }, [searchQuery, filterCountry, filterLanguage, filterCategory, filterFormat, filterPublisher, period]);
+  }, [searchQuery, filterCountry, filterLanguage, filterCategory, filterFormat, period]);
 
   const comparisonMetrics = useMemo(() => {
     if (!compareMode || !compareTarget) return null;
@@ -993,11 +985,8 @@ export default function Entities() {
       setFilterCategory={handleFilterCategoryChange}
       filterFormat={filterFormat}
       setFilterFormat={handleFilterFormatChange}
-      filterPublisher={filterPublisher}
-      setFilterPublisher={setFilterPublisher}
       period={period}
       setPeriod={handlePeriodChange}
-      publisherOptions={publisherOptions}
     >
       <div className="p-6 space-y-6">
         <div className="space-y-2">
@@ -1064,21 +1053,6 @@ export default function Entities() {
                     <SelectItem value="carousel">Carousel</SelectItem>
                   </SelectContent>
                 </Select>
-
-                <Select value={filterPublisher} onValueChange={setFilterPublisher}>
-                  <SelectTrigger className="h-9 text-sm w-[180px]">
-                    <SelectValue placeholder="Publisher" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All publishers</SelectItem>
-                    {publisherOptions.map((publisher) => (
-                      <SelectItem key={publisher} value={publisher}>
-                        {publisher}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
                 <Select value={period} onValueChange={handlePeriodChange}>
                   <SelectTrigger className="h-9 text-sm w-[150px]">
                     <SelectValue />

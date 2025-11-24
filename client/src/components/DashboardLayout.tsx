@@ -78,7 +78,9 @@ export default function DashboardLayout({
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['/']);
   const { theme, toggleTheme } = useTheme();
 
-  const shouldRenderStickyFilters = location === "/" || location === "/entities";
+  const isDefaultStickyPage = location === "/" || location === "/entities";
+  const shouldRenderStickyFilters = isDefaultStickyPage || showStickyFilters;
+  const stickyFiltersVisible = isDefaultStickyPage || showStickyFilters;
   const normalizedPublisherOptions = useMemo(() => {
     if (publisherOptions && publisherOptions.length > 0) {
       return publisherOptions.filter((option) => option !== "all");
@@ -233,7 +235,7 @@ export default function DashboardLayout({
               className={cn(
                 "border-b border-border bg-background shadow-sm transition-all duration-300",
                 "h-16 px-6 flex items-center gap-3 translate-y-2 opacity-0 pointer-events-none",
-                showStickyFilters && "translate-y-0 opacity-100 pointer-events-auto"
+                stickyFiltersVisible && "translate-y-0 opacity-100 pointer-events-auto"
               )}
             >
               <span className="text-sm font-medium text-muted-foreground mr-2">Filters:</span>
@@ -292,19 +294,21 @@ export default function DashboardLayout({
                 </SelectContent>
               </Select>
 
-              <Select value={filterPublisher} onValueChange={setFilterPublisher}>
-                <SelectTrigger className="h-8 text-xs w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All publishers</SelectItem>
-                  {normalizedPublisherOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {typeof setFilterPublisher === "function" && (
+                <Select value={filterPublisher} onValueChange={setFilterPublisher}>
+                  <SelectTrigger className="h-8 text-xs w-[120px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All publishers</SelectItem>
+                    {normalizedPublisherOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               <Select value={period} onValueChange={setPeriod}>
                 <SelectTrigger className="h-8 text-xs w-[120px]">

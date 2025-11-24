@@ -17,6 +17,7 @@ import Publishers from "./pages/Publishers";
 import MyProjects from "./pages/MyProjects";
 import LanguageDetail from "./pages/LanguageDetail";
 import FeedSnapshot from "./pages/FeedSnapshot";
+import CombinationDetail from "./pages/CombinationDetail";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/category/:name" component={CategoryDetail} />
       <Route path="/publisher/:domain" component={PublisherDetail} />
       <Route path="/article/:id" component={ArticleDetail} />
+      <Route path="/combination/:id" component={CombinationDetail} />
       <Route path="/feed/:snapshotId" component={FeedSnapshot} />
       <Route path="/language/:code" component={LanguageDetail} />
       <Route path="/entities" component={Entities} />
