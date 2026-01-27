@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Calendar, Search } from "lucide-react";
+import { Calendar, GitCompare, Search } from "lucide-react";
 import { publisherRecords, type PublisherRecord } from "@/data/publishers";
 
 const COUNTRY_OPTIONS = [
@@ -71,6 +71,15 @@ const PERIOD_OPTIONS = [
   { value: "month", label: "Month" },
   { value: "custom", label: "Custom period" },
 ] as const;
+
+const STICKY_SCROLL_THRESHOLD = 200;
+
+type CompareMode = "country" | "language" | "period" | null;
+
+const getOptionLabel = (
+  options: ReadonlyArray<{ value: string; label: string }>,
+  value: string
+) => options.find((option) => option.value === value)?.label ?? value;
 
 type PublisherRecord = {
   id: string;
@@ -134,6 +143,9 @@ export default function Publishers() {
   const [customPopoverOpen, setCustomPopoverOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [showStickyFilters, setShowStickyFilters] = useState(false);
+  const [compareMode, setCompareMode] = useState<CompareMode>(null);
+  const [compareTarget, setCompareTarget] = useState<string | undefined>();
+  const [comparePopoverOpen, setComparePopoverOpen] = useState(false);
   const filterSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -147,15 +159,77 @@ export default function Publishers() {
     if (!mainContainer) return;
 
     const handleScroll = () => {
-      if (!filterSectionRef.current) return;
-      const { bottom } = filterSectionRef.current.getBoundingClientRect();
-      setShowStickyFilters(bottom <= -10);
+      setShowStickyFilters(mainContainer.scrollTop >= STICKY_SCROLL_THRESHOLD);
     };
 
     handleScroll();
     mainContainer.addEventListener("scroll", handleScroll, { passive: true });
     return () => mainContainer.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const clearComparison = () => {
+    setCompareMode(null);
+    setCompareTarget(undefined);
+    setComparePopoverOpen(false);
+  };
+
+  const comparisonOptionList = useMemo(() => {
+    if (!compareMode) return [];
+    switch (compareMode) {
+      case "country":
+        return COUNTRY_OPTIONS;
+      case "language":
+        return LANGUAGE_OPTIONS;
+      case "period":
+        return PERIOD_OPTIONS;
+      default:
+        return [];
+    }
+  }, [compareMode]);
+
+  const comparisonLabels = useMemo(() => {
+    if (!compareMode) return null;
+    const baseValue =
+      compareMode === "country"
+        ? country
+        : compareMode === "language"
+          ? language
+          : period;
+    const baseLabel = getOptionLabel(comparisonOptionList, baseValue);
+    const targetLabel = compareTarget ? getOptionLabel(comparisonOptionList, compareTarget) : "";
+    const dimensionLabel =
+      compareMode === "country" ? "Country" : compareMode === "language" ? "Language" : "Period";
+    return { baseLabel, targetLabel, dimensionLabel };
+  }, [compareMode, comparisonOptionList, country, language, period, compareTarget]);
+
+  const isComparisonActive = Boolean(compareMode && compareTarget);
+  const comparisonSummary =
+    isComparisonActive && comparisonLabels
+      ? `${comparisonLabels.dimensionLabel}: ${comparisonLabels.baseLabel} vs ${comparisonLabels.targetLabel}`
+      : null;
+
+  useEffect(() => {
+    setPage(1);
+  }, [compareMode, compareTarget]);
+
+  useEffect(() => {
+    if (!compareMode) {
+      setCompareTarget(undefined);
+    }
+  }, [compareMode]);
+
+  useEffect(() => {
+    if (!compareMode || !compareTarget) return;
+    const baseValue =
+      compareMode === "country"
+        ? country
+        : compareMode === "language"
+          ? language
+          : period;
+    if (compareTarget === baseValue) {
+      setCompareTarget(undefined);
+    }
+  }, [compareMode, compareTarget, country, language, period]);
 
   const periodLabel =
     period === "custom"
@@ -398,9 +472,104 @@ export default function Publishers() {
                   </PopoverContent>
                 </Popover>
               )}
+
+              <Popover open={comparePopoverOpen} onOpenChange={setComparePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={isComparisonActive ? "secondary" : "outline"}
+                    size="sm"
+                    className="h-9 gap-2"
+                    onClick={() => {
+                      if (!compareMode) {
+                        setCompareMode("country");
+                      }
+                      setComparePopoverOpen(true);
+                    }}
+                  >
+                    <GitCompare className="w-4 h-4" />
+                    {isComparisonActive ? "Comparing" : "Compare"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 space-y-4" align="end">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.2em]">
+                      Dimension
+                    </p>
+                    <Select
+                      value={compareMode ?? ""}
+                      onValueChange={(value) => setCompareMode((value || null) as CompareMode)}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Select dimension" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="country">Country</SelectItem>
+                        <SelectItem value="language">Language</SelectItem>
+                        <SelectItem value="period">Period</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {compareMode && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.2em]">
+                        {compareMode === "country"
+                          ? "Country to compare"
+                          : compareMode === "language"
+                            ? "Language to compare"
+                            : "Period to compare"}
+                      </p>
+                      <Select value={compareTarget ?? ""} onValueChange={setCompareTarget}>
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Select value" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {comparisonOptionList
+                            .filter((option) => {
+                              const baseValue =
+                                compareMode === "country"
+                                  ? country
+                                  : compareMode === "language"
+                                    ? language
+                                    : period;
+                              return option.value !== baseValue;
+                            })
+                            .map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {compareMode && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start text-destructive"
+                      onClick={clearComparison}
+                    >
+                      Reset comparison
+                    </Button>
+                  )}
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>
+
+        {comparisonSummary && (
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Badge variant="outline" className="bg-muted/30">
+              {comparisonSummary}
+            </Badge>
+            <Button variant="link" size="sm" className="h-auto px-0" onClick={clearComparison}>
+              Clear comparison
+            </Button>
+          </div>
+        )}
 
         <Card className="border border-border shadow-sm">
           <CardHeader className="pb-2">
@@ -425,108 +594,128 @@ export default function Publishers() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[100px]">Rating</TableHead>
                     <TableHead className="w-[240px]">Publisher</TableHead>
-                    <TableHead className="w-[120px]">Rating</TableHead>
+                    <TableHead className="w-[180px]">Domain</TableHead>
+                    <TableHead className="w-[120px]">DDS</TableHead>
                     <TableHead className="w-[160px]">Publications</TableHead>
                     <TableHead className="w-[150px]">Avg Lifetime</TableHead>
                     <TableHead className="w-[150px]">Est. Traffic</TableHead>
-                    <TableHead className="w-[120px]">DDS</TableHead>
                     <TableHead className="w-[180px]">Main category</TableHead>
                     <TableHead className="w-[220px]">Top entities</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedPublishers.map((publisher) => (
-                    <TableRow
-                      key={publisher.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleNavigate(publisher)}
-                    >
-                      <TableCell className="align-top">
-                        <div className="flex gap-3">
-                          <img
-                            src={publisher.favicon}
-                            alt=""
-                            className="w-8 h-8 rounded-full border border-border"
-                            onError={(event) => {
-                              (event.currentTarget as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                          <div className="flex flex-col gap-1">
-                            <span className="font-semibold">{publisher.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {publisher.domain}
+                  {paginatedPublishers.map((publisher, index) => {
+                    const rank = (page - 1) * PAGE_SIZE + index + 1;
+
+                    return (
+                      <TableRow
+                        key={publisher.id}
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => handleNavigate(publisher)}
+                      >
+                        <TableCell className="align-top">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-sm text-foreground">{rank}</span>
+                            <span className={`text-xs ${getTrendClass(publisher.ratingChange)}`}>
+                              {publisher.ratingChange > 0 ? "+" : ""}
+                              {publisher.ratingChange} pt
                             </span>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="align-top">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-lg font-semibold">{publisher.rank}</span>
-                          <span className={`text-xs ${getTrendClass(publisher.ratingChange)}`}>
-                            {publisher.ratingChange > 0 ? "+" : ""}
-                            {publisher.ratingChange} pt
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="align-top">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-lg font-semibold">
-                            {publisher.publications.toLocaleString()}
-                          </span>
-                          <span
-                            className={`text-xs ${getTrendClass(publisher.publicationsChange)}`}
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex gap-2 items-center">
+                            <img
+                              src={publisher.favicon}
+                              alt=""
+                              className="w-4 h-4 rounded-full border border-border/70"
+                              onError={(event) => {
+                                (event.currentTarget as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                            <span className="text-sm text-foreground">{publisher.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <span className="text-sm text-muted-foreground">{publisher.domain}</span>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-sm text-foreground">{publisher.dds}</span>
+                            <span className={`text-xs ${getTrendClass(publisher.ddsChange)}`}>
+                              {formatChange(publisher.ddsChange)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-sm text-foreground">
+                              {publisher.publications.toLocaleString()}
+                            </span>
+                            <span
+                              className={`text-xs ${getTrendClass(publisher.publicationsChange)}`}
+                            >
+                              {formatChange(publisher.publicationsChange)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-sm text-foreground">
+                              {formatLifetime(publisher.avgLifetimeHours)}
+                            </span>
+                            <span
+                              className={`text-xs ${getTrendClass(publisher.avgLifetimeChange)}`}
+                            >
+                              {formatChange(publisher.avgLifetimeChange)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-sm text-foreground">
+                              {formatTraffic(publisher.estTraffic)}
+                            </span>
+                            <span
+                              className={`text-xs ${getTrendClass(publisher.estTrafficChange)}`}
+                            >
+                              {formatChange(publisher.estTrafficChange)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <button
+                            type="button"
+                            className="text-sm text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/category/${encodeURIComponent(publisher.category)}`);
+                            }}
                           >
-                            {formatChange(publisher.publicationsChange)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="align-top">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-lg font-semibold">
-                            {formatLifetime(publisher.avgLifetimeHours)}
-                          </span>
-                          <span
-                            className={`text-xs ${getTrendClass(publisher.avgLifetimeChange)}`}
-                          >
-                            {formatChange(publisher.avgLifetimeChange)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="align-top">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-lg font-semibold">
-                            {formatTraffic(publisher.estTraffic)}
-                          </span>
-                          <span
-                            className={`text-xs ${getTrendClass(publisher.estTrafficChange)}`}
-                          >
-                            {formatChange(publisher.estTrafficChange)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="align-top">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-lg font-semibold">{publisher.dds}</span>
-                          <span className={`text-xs ${getTrendClass(publisher.ddsChange)}`}>
-                            {formatChange(publisher.ddsChange)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="align-top font-medium">
-                        {publisher.mainCategory}
-                      </TableCell>
-                      <TableCell className="align-top">
-                        <div className="flex flex-wrap gap-1.5">
-                          {publisher.topEntities.map((entity) => (
-                            <Badge key={entity} variant="outline" className="text-xs">
-                              {entity}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            {publisher.mainCategory}
+                          </button>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+                            {publisher.topEntities.map((entity) => (
+                              <Badge
+                                key={entity}
+                                variant="outline"
+                                className="text-xs whitespace-nowrap cursor-pointer hover:bg-primary/10"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  navigate(`/entity/${encodeURIComponent(entity)}`);
+                                }}
+                              >
+                                {entity}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

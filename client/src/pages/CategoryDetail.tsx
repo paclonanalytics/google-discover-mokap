@@ -48,6 +48,7 @@ import {
 import { DateRange } from "react-day-picker";
 import { Calendar as CalendarIcon, ArrowLeft, Sparkles, Flame, TrendingUp, Repeat, Filter, Download } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { mockPublications } from "@/data/mock-publications";
 
 const COUNTRY_OPTIONS = [
@@ -129,6 +130,12 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+const CHART_RANGE_OPTIONS = [
+  { value: "7d", label: "7 days", points: 7 },
+  { value: "14d", label: "14 days", points: 14 },
+  { value: "30d", label: "30 days", points: 30 },
+] as const;
+
 export default function CategoryDetail() {
   const [, params] = useRoute("/category/:name");
   const [, navigate] = useLocation();
@@ -150,6 +157,8 @@ export default function CategoryDetail() {
     traffic: true,
     position: true,
   });
+  const [chartRange, setChartRange] =
+    useState<(typeof CHART_RANGE_OPTIONS)[number]["value"]>("30d");
 
   useEffect(() => {
     if (filterPeriod !== "custom") {
@@ -232,6 +241,15 @@ export default function CategoryDetail() {
   const chartData = useMemo(
     () => generateChartData(chartMultiplier),
     [chartMultiplier]
+  );
+
+  const chartRangePoints =
+    CHART_RANGE_OPTIONS.find((option) => option.value === chartRange)?.points ??
+    CHART_RANGE_OPTIONS[CHART_RANGE_OPTIONS.length - 1].points;
+
+  const visibleChartData = useMemo(
+    () => chartData.slice(-chartRangePoints),
+    [chartData, chartRangePoints]
   );
 
   const handleBack = () => {
@@ -320,7 +338,20 @@ export default function CategoryDetail() {
       return acc;
     }, {});
 
-    return Object.entries(grouped)
+    const totalTraffic = filteredPublications.reduce(
+      (sum, pub) => sum + (parseFloat(pub.estTraffic) || 0),
+      0
+    );
+
+    const worldwideEntry = {
+      country: "Worldwide",
+      emoji: "🌐",
+      publications: filteredPublications.length,
+      estTraffic: `${(totalTraffic / 1_000).toFixed(1)}K`,
+      change: getDeltaFromSeed(`${categoryName}-worldwide`),
+    };
+
+    const countryRows = Object.entries(grouped)
       .map(([country, data]) => ({
         country,
         emoji: COUNTRY_EMOJI[country.toLowerCase()] ?? "🌐",
@@ -329,7 +360,9 @@ export default function CategoryDetail() {
         change: getDeltaFromSeed(`${categoryName}-${country}`),
       }))
       .sort((a, b) => b.publications - a.publications)
-      .slice(0, 5);
+      .slice(0, 4);
+
+    return [worldwideEntry, ...countryRows].slice(0, 5);
   }, [filteredPublications, categoryName]);
 
   const handleCountryChange = (value: string) =>
@@ -488,36 +521,56 @@ export default function CategoryDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="border border-border shadow-sm lg:col-span-2">
-            <CardHeader className="flex flex-wrap gap-3 justify-between items-center">
-              <CardTitle className="text-base">Category dynamics</CardTitle>
-              <div className="flex flex-wrap gap-2">
-                {(Object.keys(chartConfig) as Array<keyof typeof chartConfig>).map(
-                  (key) => (
-                    <Button
-                      key={key}
-                      variant={visibleSeries[key] ? "default" : "outline"}
-                      size="sm"
-                      className="text-xs"
-                      style={{
-                        backgroundColor: visibleSeries[key]
-                          ? chartConfig[key].color
-                          : undefined,
-                        color: visibleSeries[key] ? "var(--primary-foreground)" : undefined,
-                        borderColor: chartConfig[key].color,
-                      }}
-                      onClick={() => toggleSeries(key)}
-                    >
+            <CardHeader className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-base">Category dynamics</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={chartRange}
+                    onValueChange={(value) =>
+                      setChartRange(value as (typeof CHART_RANGE_OPTIONS)[number]["value"])
+                    }
+                  >
+                    <SelectTrigger className="w-[130px] h-8 text-xs">
+                      <SelectValue placeholder="Range" />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {CHART_RANGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {(Object.keys(chartConfig) as Array<keyof typeof chartConfig>).map((key) => (
+                  <label
+                    key={key}
+                    className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground"
+                  >
+                    <Checkbox
+                      checked={visibleSeries[key]}
+                      onCheckedChange={() => toggleSeries(key)}
+                      className="h-4 w-4"
+                    />
+                    <span className="inline-flex items-center gap-1.5 text-foreground">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: chartConfig[key].color }}
+                      />
                       {chartConfig[key].label}
-                    </Button>
-                  )
-                )}
+                    </span>
+                  </label>
+                ))}
               </div>
             </CardHeader>
             <CardContent className="h-[320px]">
               <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
                 <ResponsiveContainer>
                   <ComposedChart
-                    data={chartData}
+                    data={visibleChartData}
                     margin={{ left: 0, right: 0, bottom: 0, top: 10 }}
                   >
                     <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
@@ -631,10 +684,9 @@ export default function CategoryDetail() {
                 <TableHeader>
                   <TableRow className="border-border/50">
                     <TableHead>Publisher</TableHead>
+                    <TableHead className="text-right">DDS</TableHead>
                     <TableHead className="text-right">Publications</TableHead>
                     <TableHead className="text-right">Est. Traffic</TableHead>
-                    <TableHead className="text-right">DDS</TableHead>
-                    <TableHead>Main category</TableHead>
                     <TableHead className="text-right">Avg Pos</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -642,7 +694,7 @@ export default function CategoryDetail() {
                   {topPublishers.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={5}
                         className="h-20 text-center text-sm text-muted-foreground"
                       >
                         No data for selected filters
@@ -675,16 +727,11 @@ export default function CategoryDetail() {
                             </div>
                           </div>
                         </TableCell>
+                        <TableCell className="text-right font-medium">{publisher.dds}</TableCell>
                         <TableCell className="text-right font-semibold">
                           {publisher.publications}
                         </TableCell>
                         <TableCell className="text-right font-medium">{publisher.traffic}</TableCell>
-                        <TableCell className="text-right font-medium">{publisher.dds}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {categoryName}
-                          </Badge>
-                        </TableCell>
                         <TableCell className="text-right font-semibold">
                           {publisher.avgPosition}
                         </TableCell>

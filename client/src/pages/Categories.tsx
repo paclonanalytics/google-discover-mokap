@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DateRange } from "react-day-picker";
-import { Calendar, Search } from "lucide-react";
+import { Calendar, GitCompare, Search } from "lucide-react";
 import { useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { publisherRecords } from "@/data/publishers";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
@@ -65,6 +66,15 @@ const PERIOD_OPTIONS = [
   { value: "month", label: "Month" },
   { value: "custom", label: "Custom period" },
 ] as const;
+
+const STICKY_SCROLL_THRESHOLD = 200;
+
+type CompareMode = "country" | "language" | "period" | null;
+
+const getOptionLabel = (
+  options: ReadonlyArray<{ value: string; label: string }>,
+  value: string
+) => options.find((option) => option.value === value)?.label ?? value;
 
 type CategoryFlag = "trending" | "new" | "watch" | "decline" | "reliable";
 
@@ -598,6 +608,21 @@ const formatTraffic = (value: number) => {
   return `${Math.round(value / 1_000)}K`;
 };
 
+const getPublisherFavicon = (domain: string) =>
+  `https://www.google.com/s2/favicons?domain=${domain}`;
+
+const resolvePublisherDomain = (publisher: string) => {
+  const match = publisherRecords.find(
+    (record) =>
+      record.name.toLowerCase() === publisher.toLowerCase() ||
+      record.domain.toLowerCase() === publisher.toLowerCase()
+  );
+  if (match) return match.domain;
+
+  const normalized = publisher.toLowerCase().replace(/[^a-z0-9.-]/g, "");
+  return normalized ? `${normalized}.com` : "example.com";
+};
+
 export default function Categories() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
@@ -610,6 +635,9 @@ export default function Categories() {
   const [customPopoverOpen, setCustomPopoverOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [showStickyFilters, setShowStickyFilters] = useState(false);
+  const [compareMode, setCompareMode] = useState<CompareMode>(null);
+  const [compareTarget, setCompareTarget] = useState<string | undefined>();
+  const [comparePopoverOpen, setComparePopoverOpen] = useState(false);
   const filterSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -623,15 +651,77 @@ export default function Categories() {
     if (!mainContainer) return;
 
     const handleScroll = () => {
-      if (!filterSectionRef.current) return;
-      const { bottom } = filterSectionRef.current.getBoundingClientRect();
-      setShowStickyFilters(bottom <= -10);
+      setShowStickyFilters(mainContainer.scrollTop >= STICKY_SCROLL_THRESHOLD);
     };
 
     handleScroll();
     mainContainer.addEventListener("scroll", handleScroll, { passive: true });
     return () => mainContainer.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const clearComparison = () => {
+    setCompareMode(null);
+    setCompareTarget(undefined);
+    setComparePopoverOpen(false);
+  };
+
+  const comparisonOptionList = useMemo(() => {
+    if (!compareMode) return [];
+    switch (compareMode) {
+      case "country":
+        return COUNTRY_OPTIONS;
+      case "language":
+        return LANGUAGE_OPTIONS;
+      case "period":
+        return PERIOD_OPTIONS;
+      default:
+        return [];
+    }
+  }, [compareMode]);
+
+  const comparisonLabels = useMemo(() => {
+    if (!compareMode) return null;
+    const baseValue =
+      compareMode === "country"
+        ? country
+        : compareMode === "language"
+          ? language
+          : period;
+    const baseLabel = getOptionLabel(comparisonOptionList, baseValue);
+    const targetLabel = compareTarget ? getOptionLabel(comparisonOptionList, compareTarget) : "";
+    const dimensionLabel =
+      compareMode === "country" ? "Country" : compareMode === "language" ? "Language" : "Period";
+    return { baseLabel, targetLabel, dimensionLabel };
+  }, [compareMode, comparisonOptionList, country, language, period, compareTarget]);
+
+  const isComparisonActive = Boolean(compareMode && compareTarget);
+  const comparisonSummary =
+    isComparisonActive && comparisonLabels
+      ? `${comparisonLabels.dimensionLabel}: ${comparisonLabels.baseLabel} vs ${comparisonLabels.targetLabel}`
+      : null;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [compareMode, compareTarget]);
+
+  useEffect(() => {
+    if (!compareMode) {
+      setCompareTarget(undefined);
+    }
+  }, [compareMode]);
+
+  useEffect(() => {
+    if (!compareMode || !compareTarget) return;
+    const baseValue =
+      compareMode === "country"
+        ? country
+        : compareMode === "language"
+          ? language
+          : period;
+    if (compareTarget === baseValue) {
+      setCompareTarget(undefined);
+    }
+  }, [compareMode, compareTarget, country, language, period]);
 
   const filteredCategories = useMemo(() => {
     const search = searchQuery.trim().toLowerCase();
@@ -712,7 +802,7 @@ export default function Categories() {
     >
       <div className="p-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
+        <div>
             <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
               Discover Explorer
             </p>
@@ -730,16 +820,16 @@ export default function Categories() {
           <div className="py-4 px-6 space-y-4">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
+          <Input
                 placeholder="Search categories or entities"
-                value={searchQuery}
+            value={searchQuery}
                 onChange={(event) => {
                   setSearchQuery(event.target.value);
                   setCurrentPage(1);
                 }}
-                className="pl-10"
-              />
-            </div>
+            className="pl-10"
+          />
+        </div>
 
             <div className="flex flex-wrap gap-3">
               <Select
@@ -840,9 +930,104 @@ export default function Categories() {
                   </PopoverContent>
                 </Popover>
               )}
+
+              <Popover open={comparePopoverOpen} onOpenChange={setComparePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={isComparisonActive ? "secondary" : "outline"}
+                    size="sm"
+                    className="h-9 gap-2"
+                    onClick={() => {
+                      if (!compareMode) {
+                        setCompareMode("country");
+                      }
+                      setComparePopoverOpen(true);
+                    }}
+                  >
+                    <GitCompare className="w-4 h-4" />
+                    {isComparisonActive ? "Comparing" : "Compare"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 space-y-4" align="end">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.2em]">
+                      Dimension
+                    </p>
+                    <Select
+                      value={compareMode ?? ""}
+                      onValueChange={(value) => setCompareMode((value || null) as CompareMode)}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Select dimension" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="country">Country</SelectItem>
+                        <SelectItem value="language">Language</SelectItem>
+                        <SelectItem value="period">Period</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {compareMode && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-[0.2em]">
+                        {compareMode === "country"
+                          ? "Country to compare"
+                          : compareMode === "language"
+                            ? "Language to compare"
+                            : "Period to compare"}
+                      </p>
+                      <Select value={compareTarget ?? ""} onValueChange={setCompareTarget}>
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Select value" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {comparisonOptionList
+                            .filter((option) => {
+                              const baseValue =
+                                compareMode === "country"
+                                  ? country
+                                  : compareMode === "language"
+                                    ? language
+                                    : period;
+                              return option.value !== baseValue;
+                            })
+                            .map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {compareMode && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start text-destructive"
+                      onClick={clearComparison}
+                    >
+                      Reset comparison
+                    </Button>
+                  )}
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>
+
+        {comparisonSummary && (
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Badge variant="outline" className="bg-muted/30">
+              {comparisonSummary}
+            </Badge>
+            <Button variant="link" size="sm" className="h-auto px-0" onClick={clearComparison}>
+              Clear comparison
+            </Button>
+          </div>
+        )}
 
         <Card className="border border-border shadow-sm">
           <CardHeader className="pb-2">
@@ -855,8 +1040,8 @@ export default function Categories() {
               </div>
               <Badge variant="outline" className="text-xs">
                 {periodLabel}
-              </Badge>
-            </div>
+                    </Badge>
+                  </div>
           </CardHeader>
           <CardContent className="pt-0">
             {sortedCategories.length === 0 ? (
@@ -868,90 +1053,123 @@ export default function Categories() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[120px]">Rating</TableHead>
                       <TableHead className="w-[240px]">Category</TableHead>
-                      <TableHead className="w-[140px]">Rating</TableHead>
                       <TableHead className="w-[180px]">Publications</TableHead>
                       <TableHead className="w-[160px]">Avg Lifetime</TableHead>
                       <TableHead className="w-[160px]">Est. Traffic</TableHead>
                       <TableHead className="w-[220px]">Top entities</TableHead>
-                      <TableHead className="w-[220px]">Lead publishers</TableHead>
+                      <TableHead className="w-[220px]">Top publishers</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedCategories.map((category) => (
-                      <TableRow
-                        key={category.id}
-                        className="cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => handleNavigate(category)}
-                      >
-                        <TableCell className="align-top">
-                          <span className="font-semibold text-base">{category.title}</span>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-lg font-semibold">{category.rating}</span>
-                            <span className={`text-xs ${getTrendClass(category.ratingChange)}`}>
-                              {category.ratingChange > 0 ? "+" : ""}
-                              {category.ratingChange} pt
+                    {paginatedCategories.map((category, index) => {
+                      const rank = (currentPage - 1) * PAGE_SIZE + index + 1;
+
+                      return (
+                        <TableRow
+                          key={category.id}
+                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleNavigate(category)}
+                        >
+                          <TableCell className="align-top">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-sm text-foreground">{rank}</span>
+                              <span className={`text-xs ${getTrendClass(category.ratingChange)}`}>
+                                {category.ratingChange > 0 ? "+" : ""}
+                                {category.ratingChange} pt
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <span className="text-sm font-semibold text-foreground">
+                              {category.title}
                             </span>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-sm text-foreground">
+                                {numberFormatter.format(category.publications)}
+                              </span>
+                              <span
+                                className={`text-xs ${getTrendClass(category.publicationsChange)}`}
+                              >
+                                {formatChange(category.publicationsChange)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-sm text-foreground">
+                                {formatLifetime(category.avgLifetimeHours)}
+                              </span>
+                              <span
+                                className={`text-xs ${getTrendClass(category.avgLifetimeChange)}`}
+                              >
+                                {formatChange(category.avgLifetimeChange)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-sm text-foreground">
+                                {formatTraffic(category.estTraffic)}
+                              </span>
+                              <span
+                                className={`text-xs ${getTrendClass(category.estTrafficChange)}`}
+                              >
+                                {formatChange(category.estTrafficChange)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+                              {category.topEntities.map((entity) => (
+                                <Badge
+                                  key={entity}
+                                  variant="outline"
+                                  className="text-xs whitespace-nowrap cursor-pointer hover:bg-primary/10"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    navigate(`/entity/${encodeURIComponent(entity)}`);
+                                  }}
+                                >
+                                  {entity}
+                                </Badge>
+                              ))}
+                            </div>
+                          </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
+                            {category.topPublishers.map((publisher) => {
+                              const publisherDomain = resolvePublisherDomain(publisher);
+                              return (
+                                <button
+                                  type="button"
+                                  key={publisher}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-border/60 px-2 py-1 text-xs font-medium text-muted-foreground whitespace-nowrap hover:bg-primary/5 hover:text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    navigate(`/publisher/${encodeURIComponent(publisherDomain)}`);
+                                  }}
+                                >
+                                  <img
+                                    src={getPublisherFavicon(publisherDomain)}
+                                    alt=""
+                                    className="w-3 h-3 rounded-full"
+                                    onError={(event) => {
+                                      (event.currentTarget as HTMLImageElement).style.display = "none";
+                                    }}
+                                  />
+                                  {publisher}
+                                </button>
+                              );
+                            })}
                           </div>
                         </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-lg font-semibold">
-                              {numberFormatter.format(category.publications)}
-                            </span>
-                            <span
-                              className={`text-xs ${getTrendClass(category.publicationsChange)}`}
-                            >
-                              {formatChange(category.publicationsChange)}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-lg font-semibold">
-                              {formatLifetime(category.avgLifetimeHours)}
-                            </span>
-                            <span
-                              className={`text-xs ${getTrendClass(category.avgLifetimeChange)}`}
-                            >
-                              {formatChange(category.avgLifetimeChange)}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-lg font-semibold">
-                              {formatTraffic(category.estTraffic)}
-                            </span>
-                            <span
-                              className={`text-xs ${getTrendClass(category.estTrafficChange)}`}
-                            >
-                              {formatChange(category.estTrafficChange)}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex flex-wrap gap-1.5">
-                            {category.topEntities.map((entity) => (
-                              <Badge key={entity} variant="outline" className="text-xs">
-                                {entity}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex flex-wrap gap-1.5">
-                            {category.topPublishers.map((publisher) => (
-                              <Badge key={publisher} variant="secondary" className="text-xs">
-                                {publisher}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TooltipProvider>
@@ -980,7 +1198,7 @@ export default function Categories() {
                     Next
                   </Button>
                 </div>
-              </div>
+            </div>
             )}
           </CardContent>
         </Card>

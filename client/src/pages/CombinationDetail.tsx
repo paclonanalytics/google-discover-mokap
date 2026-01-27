@@ -34,6 +34,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { Checkbox } from "@/components/ui/checkbox";
 import { findCoOccurrenceById } from "@/data/co-occurrences";
 import {
   Tooltip,
@@ -78,6 +79,16 @@ const generateHistoryData = (multiplier = 1) =>
     traffic: Math.round((Math.random() * 12000 + 4000) * multiplier),
   }));
 
+const HISTORY_RANGE_OPTIONS = [
+  { value: "7d", label: "7 days", points: 7 },
+  { value: "14d", label: "14 days", points: 14 },
+] as const;
+
+const historyChartConfig = {
+  publications: { label: "Publications", color: "var(--primary)" },
+  traffic: { label: "Est. Traffic", color: "hsl(14 90% 60%)" },
+} as const;
+
 export default function CombinationDetail() {
   const [, params] = useRoute("/combination/:id");
   const [, navigate] = useLocation();
@@ -86,6 +97,14 @@ export default function CombinationDetail() {
   const [filterPeriod, setFilterPeriod] = useState("1m");
   const [filterBadges, setFilterBadges] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [historyRange, setHistoryRange] =
+    useState<(typeof HISTORY_RANGE_OPTIONS)[number]["value"]>("14d");
+  const [historyVisibleSeries, setHistoryVisibleSeries] = useState<
+    Record<keyof typeof historyChartConfig, boolean>
+  >({
+    publications: true,
+    traffic: true,
+  });
   const pageSize = 20;
 
   const [contextEntity] = useState(() => {
@@ -120,6 +139,15 @@ export default function CombinationDetail() {
     [multiplier, combination?.id]
   );
 
+  const historyRangePoints =
+    HISTORY_RANGE_OPTIONS.find((option) => option.value === historyRange)?.points ??
+    HISTORY_RANGE_OPTIONS[HISTORY_RANGE_OPTIONS.length - 1].points;
+
+  const visibleHistoryData = useMemo(
+    () => historyData.slice(-historyRangePoints),
+    [historyData, historyRangePoints]
+  );
+
   const combinationEntities = useMemo(() => {
     if (!combination) return [];
     return Array.from(
@@ -135,6 +163,10 @@ export default function CombinationDetail() {
     () => combinationEntities.map((entity) => entity.toLowerCase()),
     [combinationEntities]
   );
+
+  const toggleHistorySeries = (series: keyof typeof historyVisibleSeries) => {
+    setHistoryVisibleSeries((prev) => ({ ...prev, [series]: !prev[series] }));
+  };
 
   const combinationPublications = useMemo(() => {
     if (!combination) return [];
@@ -353,20 +385,59 @@ export default function CombinationDetail() {
             </div>
 
             <Card className="border border-border shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">History of publications</CardTitle>
+              <CardHeader className="flex flex-col gap-3 pb-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <CardTitle className="text-base">History of publications</CardTitle>
+                  <Select
+                    value={historyRange}
+                    onValueChange={(value) =>
+                      setHistoryRange(value as (typeof HISTORY_RANGE_OPTIONS)[number]["value"])
+                    }
+                  >
+                    <SelectTrigger className="w-[130px] h-8 text-xs">
+                      <SelectValue placeholder="Range" />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {HISTORY_RANGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(Object.keys(historyChartConfig) as Array<keyof typeof historyChartConfig>).map(
+                    (key) => (
+                      <label
+                        key={key}
+                        className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground"
+                      >
+                        <Checkbox
+                          checked={historyVisibleSeries[key]}
+                          onCheckedChange={() => toggleHistorySeries(key)}
+                          className="h-4 w-4"
+                        />
+                        <span className="inline-flex items-center gap-1.5 text-foreground">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: historyChartConfig[key].color }}
+                          />
+                          {historyChartConfig[key].label}
+                        </span>
+                      </label>
+                    )
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="h-[320px]">
                 <ChartContainer
-                  config={{
-                    publications: { label: "Publications", color: "var(--primary)" },
-                    traffic: { label: "Est. Traffic", color: "hsl(14 90% 60%)" },
-                  }}
+                  config={historyChartConfig}
                   className="aspect-auto h-full w-full"
                 >
                   <ResponsiveContainer>
                     <ComposedChart
-                      data={historyData}
+                      data={visibleHistoryData}
                       margin={{ top: 20, right: 20, left: 10, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
@@ -386,20 +457,24 @@ export default function CombinationDetail() {
                         tickLine={false}
                       />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar
-                        yAxisId="left"
-                        dataKey="publications"
-                        fill="var(--primary)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="traffic"
-                        stroke="hsl(14 90% 60%)"
-                        strokeWidth={2}
-                        dot={false}
-                      />
+                      {historyVisibleSeries.publications && (
+                        <Bar
+                          yAxisId="left"
+                          dataKey="publications"
+                          fill={historyChartConfig.publications.color}
+                          radius={[4, 4, 0, 0]}
+                        />
+                      )}
+                      {historyVisibleSeries.traffic && (
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="traffic"
+                          stroke={historyChartConfig.traffic.color}
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      )}
                     </ComposedChart>
                   </ResponsiveContainer>
                 </ChartContainer>

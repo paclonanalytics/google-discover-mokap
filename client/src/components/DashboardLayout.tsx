@@ -1,6 +1,6 @@
 import { ReactNode, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart3, Search, Wrench, User, ChevronDown, ChevronRight, Compass, Tag, Grid, Globe, FolderOpen, Folder, Filter as FilterIcon, Calendar, Moon, Sun } from "lucide-react";
+import { BarChart3, Search, Wrench, User, ChevronDown, ChevronRight, Compass, Tag, TrendingUp, Grid, Globe, FolderOpen, Folder, Filter as FilterIcon, Calendar, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 import {
@@ -38,6 +38,7 @@ const menuItems = [
     icon: BarChart3,
     submenu: [
       { path: "/", label: "Explorer", icon: Compass },
+      { path: "/trends", label: "Trends", icon: TrendingUp },
       { path: "/entities", label: "Entities", icon: Tag },
       { path: "/categories", label: "Categories", icon: Grid },
       { path: "/publishers", label: "Publishers", icon: Globe },
@@ -78,9 +79,8 @@ export default function DashboardLayout({
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['/']);
   const { theme, toggleTheme } = useTheme();
 
-  const isDefaultStickyPage = location === "/" || location === "/entities";
-  const shouldRenderStickyFilters = isDefaultStickyPage || showStickyFilters;
-  const stickyFiltersVisible = isDefaultStickyPage || showStickyFilters;
+  const shouldRenderStickyFilters = showStickyFilters;
+  const stickyFiltersVisible = showStickyFilters;
   const normalizedPublisherOptions = useMemo(() => {
     if (publisherOptions && publisherOptions.length > 0) {
       return publisherOptions.filter((option) => option !== "all");
@@ -295,19 +295,19 @@ export default function DashboardLayout({
               </Select>
 
               {typeof setFilterPublisher === "function" && (
-                <Select value={filterPublisher} onValueChange={setFilterPublisher}>
-                  <SelectTrigger className="h-8 text-xs w-[120px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All publishers</SelectItem>
-                    {normalizedPublisherOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Select value={filterPublisher} onValueChange={setFilterPublisher}>
+                <SelectTrigger className="h-8 text-xs w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All publishers</SelectItem>
+                  {normalizedPublisherOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               )}
 
               <Select value={period} onValueChange={setPeriod}>

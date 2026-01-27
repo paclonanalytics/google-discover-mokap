@@ -57,6 +57,8 @@ const PERIOD_OPTIONS = [
   { value: "custom", label: "Custom period" },
 ] as const;
 
+const STICKY_SCROLL_THRESHOLD = 200;
+
 type CompareMode = "country" | "language" | "period" | null;
 type MetricKey = "rating" | "publications" | "avgLifetime" | "estTraffic";
 
@@ -915,15 +917,12 @@ export default function Entities() {
   }, [compareMode, compareTarget, filterCountry, filterLanguage, period]);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (!filterSectionRef.current) return;
-      const rect = filterSectionRef.current.getBoundingClientRect();
-      const shouldShow = rect.bottom <= -10;
-      setShowStickyFilters(shouldShow);
-    };
-
     const mainContainer = document.querySelector("main");
     if (!mainContainer) return;
+
+    const handleScroll = () => {
+      setShowStickyFilters(mainContainer.scrollTop >= STICKY_SCROLL_THRESHOLD);
+    };
 
     handleScroll();
     mainContainer.addEventListener("scroll", handleScroll, { passive: true });

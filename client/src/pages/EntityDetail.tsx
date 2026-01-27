@@ -60,6 +60,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Bar,
   ComposedChart,
@@ -105,6 +106,12 @@ const PERIOD_OPTIONS = [
   { value: "24h", label: "24 hours" },
   { value: "custom", label: "Custom period" },
 ];
+
+const CHART_RANGE_OPTIONS = [
+  { value: "7d", label: "7 days", points: 7 },
+  { value: "14d", label: "14 days", points: 14 },
+  { value: "30d", label: "30 days", points: 30 },
+] as const;
 
 type SeriesKey = "allPublications" | "newPublications" | "traffic" | "position";
 
@@ -256,6 +263,8 @@ export default function EntityDetail() {
     traffic: true,
     position: true,
   });
+const [chartRange, setChartRange] =
+  useState<(typeof CHART_RANGE_OPTIONS)[number]["value"]>("30d");
 
   useEffect(() => {
     if (filterPeriod !== "custom") {
@@ -355,6 +364,19 @@ export default function EntityDetail() {
 
   // Simulate chart data changes based on filter
   const chartData = useMemo(() => generateChartData(multiplier), [multiplier]);
+
+  const chartRangePoints =
+    useMemo(
+      () =>
+        CHART_RANGE_OPTIONS.find((option) => option.value === chartRange)?.points ??
+        CHART_RANGE_OPTIONS[CHART_RANGE_OPTIONS.length - 1].points,
+      [chartRange]
+    );
+
+  const visibleChartData = useMemo(
+    () => chartData.slice(-chartRangePoints),
+    [chartData, chartRangePoints]
+  );
 
   const chartConfig = {
     allPublications: {
@@ -652,36 +674,57 @@ export default function EntityDetail() {
               <CardHeader className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <CardTitle className="text-base font-semibold">Dynamics</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    {(Object.keys(chartConfig) as SeriesKey[]).map((key) => {
-                      const config = chartConfig[key];
-                      const isActive = visibleSeries[key];
-                      const color = getSeriesColor(key);
-                      return (
-                        <Button
-                          key={key}
-                          variant={isActive ? "default" : "outline"}
-                          size="sm"
-                          className="h-8 text-xs capitalize"
-                          style={{
-                            backgroundColor: isActive ? color : undefined,
-                            color: isActive ? "var(--primary-foreground)" : color,
-                            borderColor: color,
-                          }}
-                          onClick={() => toggleSeries(key)}
-                        >
+                  <Select
+                    value={chartRange}
+                    onValueChange={(value) =>
+                      setChartRange(value as (typeof CHART_RANGE_OPTIONS)[number]["value"])
+                    }
+                  >
+                    <SelectTrigger className="w-[130px] h-8 text-xs">
+                      <SelectValue placeholder="Range" />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {CHART_RANGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(Object.keys(chartConfig) as SeriesKey[]).map((key) => {
+                    const config = chartConfig[key];
+                    return (
+                      <label
+                        key={key}
+                        className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground capitalize"
+                      >
+                        <Checkbox
+                          checked={visibleSeries[key]}
+                          onCheckedChange={() => toggleSeries(key)}
+                          className="h-4 w-4"
+                        />
+                        <span className="inline-flex items-center gap-1.5 text-foreground">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: getSeriesColor(key) }}
+                          />
                           {config.label}
-                        </Button>
-                      );
-                    })}
-                  </div>
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               </CardHeader>
               <CardContent className="px-1">
                 <div className="h-[300px] w-full">
                   <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <ComposedChart
+                        data={visibleChartData}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                      >
                         <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} />
                         <XAxis 
                           dataKey="date" 

@@ -1,5 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -40,7 +40,6 @@ import {
   Calendar,
   Repeat,
   Globe,
-  TrendingUpIcon,
   Flame,
   Filter,
   Search,
@@ -48,11 +47,17 @@ import {
   Table as TableIcon,
   LayoutGrid,
   ChevronDown,
+  CalendarDays,
+  TreePine,
+  ArrowUpRight,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart as ReBarChart, Bar, XAxis, ResponsiveContainer, Tooltip as RechartsTooltip, Cell } from "recharts";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
+
+const STICKY_SCROLL_THRESHOLD = 200;
 
 // Mock data - Extended to 10 items
 const popularMaterials = [
@@ -973,6 +978,406 @@ const searchHistory = [
   { query: "Health, Europe, Last Week", timestamp: "1 day ago" },
 ];
 
+interface ExplorerTrend {
+  id: string;
+  title: string;
+  summary: string;
+  category: string;
+  publications: number;
+  publicationsChange: number;
+  traffic: number;
+  trafficChange: number;
+  entities: string[];
+  trendType: "new" | "short-term" | "seasonal" | "evergreen" | "geo";
+  publicationsTrend: number[];
+  trafficTrend: number[];
+}
+
+const explorerTrends: ExplorerTrend[] = [
+  // New Trends
+  {
+    id: "ai-video-sora",
+    title: "Sora & AI Video",
+    summary: "New generation of video AI models creating photorealistic scenes.",
+    category: "Technology",
+    publications: 1250,
+    publicationsChange: 156,
+    traffic: 850000,
+    trafficChange: 320,
+    entities: ["OpenAI", "Sora", "Generative AI"],
+    trendType: "new",
+    publicationsTrend: [10, 20, 50, 150, 400, 800, 1100, 1250],
+    trafficTrend: [5, 15, 40, 100, 300, 600, 800, 850],
+  },
+  {
+    id: "ios-18-rumors",
+    title: "iOS 18 AI Features",
+    summary: "Leaked details about Apple's integration of LLMs into Siri.",
+    category: "Technology",
+    publications: 840,
+    publicationsChange: 85,
+    traffic: 420000,
+    trafficChange: 110,
+    entities: ["Apple", "iOS 18", "Siri"],
+    trendType: "new",
+    publicationsTrend: [100, 120, 150, 200, 400, 600, 750, 840],
+    trafficTrend: [50, 60, 80, 100, 200, 300, 380, 420],
+  },
+  {
+    id: "spacex-starship-3",
+    title: "Starship Flight 3",
+    summary: "Anticipation and analysis of the upcoming third integrated flight test.",
+    category: "Science",
+    publications: 620,
+    publicationsChange: 95,
+    traffic: 310000,
+    trafficChange: 140,
+    entities: ["SpaceX", "Starship", "Elon Musk"],
+    trendType: "new",
+    publicationsTrend: [50, 70, 100, 150, 250, 400, 550, 620],
+    trafficTrend: [20, 40, 60, 100, 180, 250, 290, 310],
+  },
+  {
+    id: "vision-pro-apps",
+    title: "Vision Pro Ecosystem",
+    summary: "Growth of native apps and spatial computing experiences.",
+    category: "Technology",
+    publications: 450,
+    publicationsChange: 42,
+    traffic: 180000,
+    trafficChange: 55,
+    entities: ["Vision Pro", "Apple", "Spatial Computing"],
+    trendType: "new",
+    publicationsTrend: [120, 150, 180, 220, 280, 350, 410, 450],
+    trafficTrend: [60, 80, 100, 120, 140, 160, 175, 180],
+  },
+  {
+    id: "nvidia-earnings-hype",
+    title: "NVIDIA H100 Demand",
+    summary: "Market focus on Blackwell architecture and AI hardware dominance.",
+    category: "Finance",
+    publications: 380,
+    publicationsChange: 35,
+    traffic: 220000,
+    trafficChange: 48,
+    entities: ["NVIDIA", "AI Chips", "Stock Market"],
+    trendType: "new",
+    publicationsTrend: [180, 210, 230, 260, 290, 320, 350, 380],
+    trafficTrend: [90, 110, 130, 150, 170, 190, 210, 220],
+  },
+  // Short-term Trends
+  {
+    id: "bitcoin-halving",
+    title: "BTC Halving Prep",
+    summary: "Mining difficulty adjustments and price action leading to the halving.",
+    category: "Finance",
+    publications: 2100,
+    publicationsChange: 25,
+    traffic: 1200000,
+    trafficChange: 42,
+    entities: ["Bitcoin", "Mining", "Crypto"],
+    trendType: "short-term",
+    publicationsTrend: [1500, 1600, 1750, 1850, 1950, 2000, 2050, 2100],
+    trafficTrend: [800, 900, 950, 1000, 1050, 1100, 1150, 1200],
+  },
+  {
+    id: "mwc-2024-previews",
+    title: "MWC Barcelona",
+    summary: "Mobile World Congress announcements for new foldables and gadgets.",
+    category: "Technology",
+    publications: 1850,
+    publicationsChange: 140,
+    traffic: 980000,
+    trafficChange: 180,
+    entities: ["MWC", "Xiaomi", "Samsung"],
+    trendType: "short-term",
+    publicationsTrend: [100, 200, 400, 800, 1200, 1500, 1700, 1850],
+    trafficTrend: [50, 120, 250, 450, 650, 800, 900, 980],
+  },
+  {
+    id: "dune-2-release",
+    title: "Dune: Part Two",
+    summary: "Box office predictions and early reviews for Villeneuve's sequel.",
+    category: "Entertainment",
+    publications: 1420,
+    publicationsChange: 65,
+    traffic: 2800000,
+    trafficChange: 92,
+    entities: ["Dune", "Zendaya", "Warner Bros"],
+    trendType: "short-term",
+    publicationsTrend: [400, 550, 700, 900, 1100, 1250, 1350, 1420],
+    trafficTrend: [800, 1100, 1400, 1800, 2200, 2500, 2700, 2800],
+  },
+  {
+    id: "ncaa-march-madness",
+    title: "March Madness",
+    summary: "Bracketology and early favorites for the college basketball tournament.",
+    category: "Sports",
+    publications: 950,
+    publicationsChange: 310,
+    traffic: 4500000,
+    trafficChange: 420,
+    entities: ["NCAA", "Basketball", "Brackets"],
+    trendType: "short-term",
+    publicationsTrend: [50, 80, 150, 300, 500, 700, 850, 950],
+    trafficTrend: [100, 300, 800, 1500, 2500, 3500, 4200, 4500],
+  },
+  {
+    id: "eu-ai-act-vote",
+    title: "EU AI Act Final Vote",
+    summary: "Regulatory implications of the upcoming landmark AI legislation.",
+    category: "Politics",
+    publications: 680,
+    publicationsChange: 15,
+    traffic: 340000,
+    trafficChange: 22,
+    entities: ["EU", "Regulation", "AI Ethics"],
+    trendType: "short-term",
+    publicationsTrend: [580, 600, 620, 640, 650, 660, 670, 680],
+    trafficTrend: [280, 290, 300, 310, 320, 330, 335, 340],
+  },
+  // Seasonal Trends
+  {
+    id: "spring-fashion-24",
+    title: "Spring Collections",
+    summary: "Top fashion trends for the upcoming spring season.",
+    category: "Lifestyle",
+    publications: 2400,
+    publicationsChange: 45,
+    traffic: 1800000,
+    trafficChange: 52,
+    entities: ["Fashion", "Retail", "Trends"],
+    trendType: "seasonal",
+    publicationsTrend: [800, 1100, 1400, 1700, 2000, 2200, 2350, 2400],
+    trafficTrend: [600, 850, 1100, 1350, 1550, 1650, 1750, 1800],
+  },
+  {
+    id: "tax-season-usa",
+    title: "Tax Filing Tips",
+    summary: "IRS updates and advice for the US 2024 tax filing season.",
+    category: "Finance",
+    publications: 1500,
+    publicationsChange: 110,
+    traffic: 3200000,
+    trafficChange: 150,
+    entities: ["IRS", "Taxes", "Personal Finance"],
+    trendType: "seasonal",
+    publicationsTrend: [200, 400, 700, 1000, 1250, 1400, 1480, 1500],
+    trafficTrend: [400, 800, 1500, 2200, 2700, 3000, 3150, 3200],
+  },
+  {
+    id: "cherry-blossom-japan",
+    title: "Sakura Forecast",
+    summary: "Travel guides and timing for the cherry blossom season in Japan.",
+    category: "Travel",
+    publications: 820,
+    publicationsChange: 35,
+    traffic: 940000,
+    trafficChange: 48,
+    entities: ["Japan", "Tourism", "Nature"],
+    trendType: "seasonal",
+    publicationsTrend: [400, 480, 550, 630, 710, 770, 800, 820],
+    trafficTrend: [450, 520, 610, 720, 810, 880, 920, 940],
+  },
+  {
+    id: "summer-olympics-prep",
+    title: "Olympic Qualifiers",
+    summary: "Latest results from track and field qualifiers for Paris 2024.",
+    category: "Sports",
+    publications: 740,
+    publicationsChange: 18,
+    traffic: 560000,
+    trafficChange: 24,
+    entities: ["Olympics", "Athletics", "Paris"],
+    trendType: "seasonal",
+    publicationsTrend: [600, 630, 650, 670, 700, 720, 735, 740],
+    trafficTrend: [420, 450, 480, 500, 520, 540, 555, 560],
+  },
+  {
+    id: "gardening-prep-spring",
+    title: "Early Spring Planting",
+    summary: "Guides for preparing soil and choosing seeds for the new season.",
+    category: "Home",
+    publications: 590,
+    publicationsChange: 22,
+    traffic: 410000,
+    trafficChange: 31,
+    entities: ["Gardening", "Home Decor", "DIY"],
+    trendType: "seasonal",
+    publicationsTrend: [450, 480, 510, 530, 550, 570, 585, 590],
+    trafficTrend: [310, 330, 350, 370, 385, 395, 405, 410],
+  },
+  // Evergreen Trends
+  {
+    id: "intermittent-fasting",
+    title: "Intermittent Fasting",
+    summary: "Ongoing interest in health benefits and different fasting protocols.",
+    category: "Health",
+    publications: 3200,
+    publicationsChange: 5,
+    traffic: 6800000,
+    trafficChange: 8,
+    entities: ["Diet", "Wellness", "Nutrition"],
+    trendType: "evergreen",
+    publicationsTrend: [3100, 3120, 3140, 3160, 3180, 3190, 3195, 3200],
+    trafficTrend: [6600, 6630, 6660, 6700, 6730, 6760, 6790, 6800],
+  },
+  {
+    id: "passive-income-ideas",
+    title: "Passive Income",
+    summary: "Strategies for generating side income through digital assets.",
+    category: "Finance",
+    publications: 2800,
+    publicationsChange: 3,
+    traffic: 4200000,
+    trafficChange: 5,
+    entities: ["Finance", "Investing", "Side Hustle"],
+    trendType: "evergreen",
+    publicationsTrend: [2750, 2760, 2770, 2780, 2790, 2795, 2798, 2800],
+    trafficTrend: [4100, 4120, 4140, 4160, 4170, 4180, 4190, 4200],
+  },
+  {
+    id: "minimalist-living",
+    title: "Minimalism",
+    summary: "Decluttering and essentialist living for mental clarity.",
+    category: "Lifestyle",
+    publications: 1950,
+    publicationsChange: 2,
+    traffic: 2400000,
+    trafficChange: 4,
+    entities: ["Lifestyle", "Psychology", "Home"],
+    trendType: "evergreen",
+    publicationsTrend: [1930, 1935, 1940, 1945, 1948, 1950, 1952, 1950],
+    trafficTrend: [2350, 2360, 2370, 2380, 2390, 2395, 2398, 2400],
+  },
+  {
+    id: "python-learning",
+    title: "Learn Python",
+    summary: "Continuous demand for Python tutorials and AI development path.",
+    category: "Education",
+    publications: 1540,
+    publicationsChange: 7,
+    traffic: 3100000,
+    trafficChange: 12,
+    entities: ["Coding", "Python", "Career"],
+    trendType: "evergreen",
+    publicationsTrend: [1480, 1490, 1500, 1510, 1520, 1530, 1535, 1540],
+    trafficTrend: [2800, 2850, 2900, 2950, 3000, 3050, 3080, 3100],
+  },
+  {
+    id: "meditation-basics",
+    title: "Meditation Guides",
+    summary: "Foundational techniques for stress reduction and mindfulness.",
+    category: "Health",
+    publications: 1280,
+    publicationsChange: 4,
+    traffic: 1900000,
+    trafficChange: 6,
+    entities: ["Mental Health", "Meditation", "Stress"],
+    trendType: "evergreen",
+    publicationsTrend: [1250, 1260, 1265, 1270, 1275, 1278, 1279, 1280],
+    trafficTrend: [1850, 1860, 1870, 1880, 1885, 1890, 1895, 1900],
+  },
+  // GEO Trends
+  {
+    id: "local-elections-uk",
+    title: "UK Local Elections",
+    summary: "Regional polling and major party shifts in the United Kingdom.",
+    category: "Politics",
+    publications: 1100,
+    publicationsChange: 145,
+    traffic: 2600000,
+    trafficChange: 180,
+    entities: ["UK", "London", "Voting"],
+    trendType: "geo",
+    publicationsTrend: [200, 350, 500, 700, 850, 950, 1050, 1100],
+    trafficTrend: [400, 800, 1200, 1600, 2000, 2300, 2500, 2600],
+  },
+  {
+    id: "real-estate-berlin",
+    title: "Berlin Rental Market",
+    summary: "New rent cap debates and supply issues in the German capital.",
+    category: "Finance",
+    publications: 850,
+    publicationsChange: 32,
+    traffic: 680000,
+    trafficChange: 45,
+    entities: ["Germany", "Berlin", "Housing"],
+    trendType: "geo",
+    publicationsTrend: [650, 680, 710, 740, 770, 800, 830, 850],
+    trafficTrend: [480, 510, 540, 580, 610, 640, 665, 680],
+  },
+  {
+    id: "paris-olympic-traffic",
+    title: "Paris Transport Changes",
+    summary: "Local news about road closures and metro updates for the Games.",
+    category: "Travel",
+    publications: 720,
+    publicationsChange: 88,
+    traffic: 1200000,
+    trafficChange: 110,
+    entities: ["France", "Paris", "Infrastructure"],
+    trendType: "geo",
+    publicationsTrend: [300, 380, 450, 520, 580, 640, 690, 720],
+    trafficTrend: [500, 650, 780, 900, 1020, 1110, 1170, 1200],
+  },
+  {
+    id: "silicon-valley-ai-hub",
+    title: "SF AI Renaissance",
+    summary: "Surge in new startups and co-working spaces in San Francisco.",
+    category: "Technology",
+    publications: 640,
+    publicationsChange: 56,
+    traffic: 950000,
+    trafficChange: 72,
+    entities: ["USA", "San Francisco", "Startups"],
+    trendType: "geo",
+    publicationsTrend: [400, 450, 490, 530, 570, 600, 625, 640],
+    trafficTrend: [550, 620, 680, 740, 810, 870, 920, 950],
+  },
+  {
+    id: "madrid-food-scene",
+    title: "Madrid Michelin Guide",
+    summary: "New restaurant rankings and food tourism growth in Spain.",
+    category: "Lifestyle",
+    publications: 410,
+    publicationsChange: 28,
+    traffic: 540000,
+    trafficChange: 35,
+    entities: ["Spain", "Madrid", "Gastronomy"],
+    trendType: "geo",
+    publicationsTrend: [320, 340, 355, 370, 382, 395, 405, 410],
+    trafficTrend: [410, 435, 460, 482, 505, 525, 535, 540],
+  },
+];
+
+const ExplorerMiniTrendChart = ({ data, color }: { data: number[], color: string }) => {
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const height = 30;
+  const width = 80;
+  
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * height;
+    return `${x},${y}`;
+  }).join(" ");
+
+  return (
+    <svg width={width} height={height} className="overflow-visible">
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        points={points}
+      />
+    </svg>
+  );
+};
+
 export default function Home() {
   const [, navigate] = useLocation();
   const { theme } = useTheme();
@@ -1257,23 +1662,14 @@ const renderEntitiesBadges = (material: typeof popularMaterials[number]) => (
 
   // Scroll handler for sticky filters
   useEffect(() => {
-    const handleScroll = () => {
-      if (filterSectionRef.current) {
-        const rect = filterSectionRef.current.getBoundingClientRect();
-        // Show sticky filters when the block is completely gone + 10px gap
-        const shouldShow = rect.bottom <= -10;
-        setShowStickyFilters(shouldShow);
-      }
-    };
-
-    // Find the main scrollable container
     const mainContainer = document.querySelector('main');
     if (!mainContainer) return;
 
-    // Check on mount
-    handleScroll();
+    const handleScroll = () => {
+      setShowStickyFilters(mainContainer.scrollTop >= STICKY_SCROLL_THRESHOLD);
+    };
 
-    // Add scroll listener to main container
+    handleScroll();
     mainContainer.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
@@ -1833,6 +2229,121 @@ const renderEntitiesBadges = (material: typeof popularMaterials[number]) => (
           </Card>
 
         </div>
+
+
+        {/* Trends Discovery Widget - Full Width */}
+        <Card className="border border-border shadow-sm">
+          <CardHeader className="pb-3 border-b border-border/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  Market Trends Discovery
+                </CardTitle>
+                <CardDescription>
+                  Real-time content patterns and emerging topics across Google Discover
+                </CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-primary hover:text-primary hover:bg-primary/10"
+                onClick={() => navigate("/trends")}
+              >
+                View all trends
+                <ArrowUpRight className="ml-1 w-4 h-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <Tabs defaultValue="new" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="new" className="gap-2">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  New trends
+                </TabsTrigger>
+                <TabsTrigger value="short-term" className="gap-2">
+                  <Clock className="w-3.5 h-3.5" />
+                  Short-term
+                </TabsTrigger>
+                <TabsTrigger value="seasonal" className="gap-2">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  Seasonal
+                </TabsTrigger>
+                <TabsTrigger value="evergreen" className="gap-2">
+                  <TreePine className="w-3.5 h-3.5" />
+                  Evergreen
+                </TabsTrigger>
+                <TabsTrigger value="geo" className="gap-2">
+                  <Globe className="w-3.5 h-3.5" />
+                  GEO trends
+                </TabsTrigger>
+              </TabsList>
+
+              {(["new", "short-term", "seasonal", "evergreen", "geo"] as const).map((type) => (
+                <TabsContent key={type} value={type}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {explorerTrends
+                      .filter(t => t.trendType === type)
+                      .map(trend => (
+                        <Card 
+                          key={trend.id} 
+                          className="hover:border-primary transition-all cursor-pointer group shadow-none border-border/60 bg-muted/20 overflow-hidden"
+                          onClick={() => navigate(`/trends/${trend.id}`)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-xs group-hover:text-primary transition-colors truncate">
+                                  {trend.title}
+                                </h3>
+                                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                  {trend.summary}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              <div>
+                                <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Pubs</div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs font-bold">{trend.publications >= 1000 ? `${(trend.publications/1000).toFixed(1)}K` : trend.publications}</span>
+                                  <span className="text-[9px] text-green-500">+{trend.publicationsChange}%</span>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Traffic</div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs font-bold">{trend.traffic >= 1000000 ? `${(trend.traffic/1000000).toFixed(1)}M` : `${(trend.traffic/1000).toFixed(0)}K`}</span>
+                                  <span className="text-[9px] text-green-500">+{trend.trafficChange}%</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-end gap-2">
+                              <div className="flex flex-wrap gap-1 flex-1">
+                                {trend.entities.slice(0, 2).map(entity => (
+                                  <Badge key={entity} variant="secondary" className="text-[8px] py-0 px-1 h-3.5 leading-none">
+                                    {entity}
+                                  </Badge>
+                                ))}
+                              </div>
+                              <div className="flex-shrink-0">
+                                <ExplorerMiniTrendChart 
+                                  data={trend.publicationsTrend} 
+                                  color={trend.trendType === 'new' ? "#ef4444" : "#10b981"} 
+                                />
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                    ))}
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </CardContent>
+        </Card>
 
 
         {/* Popular Materials - Reorganized Table */}

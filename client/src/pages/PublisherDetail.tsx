@@ -51,6 +51,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { mockPublications } from "@/data/mock-publications";
 import { publisherRecords } from "@/data/publishers";
 
@@ -133,6 +134,12 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+const CHART_RANGE_OPTIONS = [
+  { value: "7d", label: "7 days", points: 7 },
+  { value: "14d", label: "14 days", points: 14 },
+  { value: "30d", label: "30 days", points: 30 },
+] as const;
+
 const formatTrafficValue = (value: number) => {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   return `${Math.round(value / 1_000)}K`;
@@ -171,6 +178,8 @@ export default function PublisherDetail() {
     traffic: true,
     position: true,
   });
+  const [chartRange, setChartRange] =
+    useState<(typeof CHART_RANGE_OPTIONS)[number]["value"]>("30d");
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -274,6 +283,15 @@ export default function PublisherDetail() {
   }, [publisher]);
 
   const chartData = useMemo(() => generateChartData(multiplier), [multiplier]);
+
+  const chartRangePoints =
+    CHART_RANGE_OPTIONS.find((option) => option.value === chartRange)?.points ??
+    CHART_RANGE_OPTIONS[CHART_RANGE_OPTIONS.length - 1].points;
+
+  const visibleChartData = useMemo(
+    () => chartData.slice(-chartRangePoints),
+    [chartData, chartRangePoints]
+  );
 
   const paginatedPublications = useMemo(
     () =>
@@ -386,15 +404,24 @@ export default function PublisherDetail() {
     setVisibleSeries((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const totalSitePublications =
+    publisher?.publications && publisher.publications > 0
+      ? publisher.publications
+      : metrics.publications;
+  const discoverPublications =
+    filteredPublications.length > 0 ? filteredPublications.length : metrics.publications;
+  const discoverShare =
+    totalSitePublications > 0 ? Math.min(100, (discoverPublications / totalSitePublications) * 100) : 0;
+
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" className="gap-2" onClick={handleBack}>
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </Button>
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Button>
             <div>
               <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">
                 Publisher Detail
@@ -527,33 +554,103 @@ export default function PublisherDetail() {
           ))}
         </div>
 
+        <Card className="border border-border shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Discover coverage</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Share of this publisher&apos;s recent articles that appear in Google Discover
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                  Site publications
+                </p>
+                <p className="text-2xl font-semibold">
+                  {totalSitePublications.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground">Last 30 days</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                  In Discover
+                </p>
+                <p className="text-2xl font-semibold">{discoverPublications.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">
+                  {publisher ? publisherDomain : "Filtered selection"}
+                </p>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+                <span>Discover share</span>
+                <span className="text-foreground text-sm font-semibold">
+                  {discoverShare.toFixed(1)}%
+                </span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-muted">
+                <div
+                  className="h-2 rounded-full bg-primary transition-all"
+                  style={{ width: `${discoverShare}%` }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="border border-border shadow-sm lg:col-span-2">
-            <CardHeader className="flex flex-wrap gap-3 justify-between items-center">
-              <CardTitle className="text-base">Publisher dynamics</CardTitle>
-              <div className="flex flex-wrap gap-2">
+            <CardHeader className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-base">Publisher dynamics</CardTitle>
+                <Select
+                  value={chartRange}
+                  onValueChange={(value) =>
+                    setChartRange(value as (typeof CHART_RANGE_OPTIONS)[number]["value"])
+                  }
+                >
+                  <SelectTrigger className="w-[130px] h-8 text-xs">
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {CHART_RANGE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-wrap gap-3">
                 {(Object.keys(chartConfig) as Array<keyof typeof chartConfig>).map((key) => (
-                  <Button
+                  <label
                     key={key}
-                    variant={visibleSeries[key] ? "default" : "outline"}
-                    size="sm"
-                    className="text-xs"
-                    style={{
-                      backgroundColor: visibleSeries[key] ? chartConfig[key].color : undefined,
-                      color: visibleSeries[key] ? "var(--primary-foreground)" : undefined,
-                      borderColor: chartConfig[key].color,
-                    }}
-                    onClick={() => toggleSeries(key)}
+                    className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground"
                   >
-                    {chartConfig[key].label}
-                  </Button>
+                    <Checkbox
+                      checked={visibleSeries[key]}
+                      onCheckedChange={() => toggleSeries(key)}
+                      className="h-4 w-4"
+                    />
+                    <span className="inline-flex items-center gap-1.5 text-foreground">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: chartConfig[key].color }}
+                      />
+                      {chartConfig[key].label}
+                    </span>
+                  </label>
                 ))}
               </div>
             </CardHeader>
             <CardContent className="h-[320px]">
               <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
                 <ResponsiveContainer>
-                  <ComposedChart data={chartData} margin={{ left: 0, right: 0, bottom: 0, top: 10 }}>
+                  <ComposedChart
+                    data={visibleChartData}
+                    margin={{ left: 0, right: 0, bottom: 0, top: 10 }}
+                  >
                     <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis yAxisId="left" tick={{ fontSize: 12 }} />

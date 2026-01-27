@@ -13,6 +13,8 @@ import PublisherDetail from "./pages/PublisherDetail";
 import ArticleDetail from "./pages/ArticleDetail";
 import Entities from "./pages/Entities";
 import Categories from "./pages/Categories";
+import Trends from "./pages/Trends";
+import TrendDetail from "./pages/TrendDetail";
 import Publishers from "./pages/Publishers";
 import MyProjects from "./pages/MyProjects";
 import LanguageDetail from "./pages/LanguageDetail";
@@ -34,6 +36,8 @@ function Router() {
       <Route path="/language/:code" component={LanguageDetail} />
       <Route path="/entities" component={Entities} />
       <Route path="/categories" component={Categories} />
+      <Route path="/trends" component={Trends} />
+      <Route path="/trends/:id" component={TrendDetail} />
       <Route path="/publishers" component={Publishers} />
       <Route path="/tracking/projects" component={MyProjects} />
       <Route path={"/404"} component={NotFound} />
